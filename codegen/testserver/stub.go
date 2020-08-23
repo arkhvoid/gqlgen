@@ -7,6 +7,7 @@ import (
 
 	introspection1 "github.com/99designs/gqlgen/codegen/testserver/introspection"
 	invalid_packagename "github.com/99designs/gqlgen/codegen/testserver/invalid-packagename"
+	"github.com/99designs/gqlgen/codegen/testserver/otherpkg"
 )
 
 type Stub struct {
@@ -25,6 +26,9 @@ type Stub struct {
 	}
 	ModelMethodsResolver struct {
 		ResolverField func(ctx context.Context, obj *ModelMethods) (bool, error)
+	}
+	MutationResolver struct {
+		UpdateSomething func(ctx context.Context, input SpecialInput) (string, error)
 	}
 	OverlappingFieldsResolver struct {
 		OldFoo func(ctx context.Context, obj *OverlappingFields) (int, error)
@@ -93,7 +97,7 @@ type Stub struct {
 		OptionalUnion                    func(ctx context.Context) (TestUnion, error)
 		ValidType                        func(ctx context.Context) (*ValidType, error)
 		WrappedStruct                    func(ctx context.Context) (*WrappedStruct, error)
-		WrappedScalar                    func(ctx context.Context) (WrappedScalar, error)
+		WrappedScalar                    func(ctx context.Context) (otherpkg.Scalar, error)
 		WrappedMap                       func(ctx context.Context) (WrappedMap, error)
 		WrappedSlice                     func(ctx context.Context) (WrappedSlice, error)
 	}
@@ -128,6 +132,9 @@ func (r *Stub) ForcedResolver() ForcedResolverResolver {
 }
 func (r *Stub) ModelMethods() ModelMethodsResolver {
 	return &stubModelMethods{r}
+}
+func (r *Stub) Mutation() MutationResolver {
+	return &stubMutation{r}
 }
 func (r *Stub) OverlappingFields() OverlappingFieldsResolver {
 	return &stubOverlappingFields{r}
@@ -191,6 +198,12 @@ type stubModelMethods struct{ *Stub }
 
 func (r *stubModelMethods) ResolverField(ctx context.Context, obj *ModelMethods) (bool, error) {
 	return r.ModelMethodsResolver.ResolverField(ctx, obj)
+}
+
+type stubMutation struct{ *Stub }
+
+func (r *stubMutation) UpdateSomething(ctx context.Context, input SpecialInput) (string, error) {
+	return r.MutationResolver.UpdateSomething(ctx, input)
 }
 
 type stubOverlappingFields struct{ *Stub }
@@ -381,7 +394,7 @@ func (r *stubQuery) ValidType(ctx context.Context) (*ValidType, error) {
 func (r *stubQuery) WrappedStruct(ctx context.Context) (*WrappedStruct, error) {
 	return r.QueryResolver.WrappedStruct(ctx)
 }
-func (r *stubQuery) WrappedScalar(ctx context.Context) (WrappedScalar, error) {
+func (r *stubQuery) WrappedScalar(ctx context.Context) (otherpkg.Scalar, error) {
 	return r.QueryResolver.WrappedScalar(ctx)
 }
 func (r *stubQuery) WrappedMap(ctx context.Context) (WrappedMap, error) {

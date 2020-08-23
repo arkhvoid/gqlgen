@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type ckey string
+
 func TestDirectives(t *testing.T) {
 	resolvers := &Stub{}
 	ok := "Ok"
@@ -48,7 +50,7 @@ func TestDirectives(t *testing.T) {
 	}
 
 	resolvers.QueryResolver.DirectiveField = func(ctx context.Context) (*string, error) {
-		if s, ok := ctx.Value("request_id").(*string); ok {
+		if s, ok := ctx.Value(ckey("request_id")).(*string); ok {
 			return s, nil
 		}
 
@@ -149,7 +151,7 @@ func TestDirectives(t *testing.T) {
 				return next(ctx)
 			},
 			Logged: func(ctx context.Context, obj interface{}, next graphql.Resolver, id string) (interface{}, error) {
-				return next(context.WithValue(ctx, "request_id", &id))
+				return next(context.WithValue(ctx, ckey("request_id"), &id))
 			},
 			ToNull: func(ctx context.Context, obj interface{}, next graphql.Resolver) (interface{}, error) {
 				return nil, nil
@@ -160,7 +162,14 @@ func TestDirectives(t *testing.T) {
 			Directive2: func(ctx context.Context, obj interface{}, next graphql.Resolver) (res interface{}, err error) {
 				return next(ctx)
 			},
-			Order: func(ctx context.Context, obj interface{}, next graphql.Resolver, location string) (res interface{}, err error) {
+			Order1: func(ctx context.Context, obj interface{}, next graphql.Resolver, location string) (res interface{}, err error) {
+				order := []string{location}
+				res, err = next(ctx)
+				od := res.(*ObjectDirectives)
+				od.Order = append(order, od.Order...)
+				return od, err
+			},
+			Order2: func(ctx context.Context, obj interface{}, next graphql.Resolver, location string) (res interface{}, err error) {
 				order := []string{location}
 				res, err = next(ctx)
 				od := res.(*ObjectDirectives)
@@ -172,13 +181,13 @@ func TestDirectives(t *testing.T) {
 	}))
 
 	srv.AroundFields(func(ctx context.Context, next graphql.Resolver) (res interface{}, err error) {
-		path, _ := ctx.Value("path").([]int)
-		return next(context.WithValue(ctx, "path", append(path, 1)))
+		path, _ := ctx.Value(ckey("path")).([]int)
+		return next(context.WithValue(ctx, ckey("path"), append(path, 1)))
 	})
 
 	srv.AroundFields(func(ctx context.Context, next graphql.Resolver) (res interface{}, err error) {
-		path, _ := ctx.Value("path").([]int)
-		return next(context.WithValue(ctx, "path", append(path, 2)))
+		path, _ := ctx.Value(ckey("path")).([]int)
+		return next(context.WithValue(ctx, ckey("path"), append(path, 2)))
 	})
 
 	c := client.New(srv)
@@ -308,7 +317,7 @@ func TestDirectives(t *testing.T) {
 
 			err := c.Post(`query { directiveInputNullable(arg: {text:"invalid text",inner:{message:"123"}}) }`, &resp)
 
-			require.EqualError(t, err, `[{"message":"not valid","path":["directiveInputNullable"]}]`)
+			require.EqualError(t, err, `[{"message":"not valid","path":["directiveInputNullable","arg"]}]`)
 			require.Nil(t, resp.DirectiveInputNullable)
 		})
 		t.Run("when function errors on inner directives", func(t *testing.T) {
@@ -318,7 +327,7 @@ func TestDirectives(t *testing.T) {
 
 			err := c.Post(`query { directiveInputNullable(arg: {text:"2",inner:{message:""}}) }`, &resp)
 
-			require.EqualError(t, err, `[{"message":"not valid","path":["directiveInputNullable"]}]`)
+			require.EqualError(t, err, `[{"message":"not valid","path":["directiveInputNullable","arg","inner"]}]`)
 			require.Nil(t, resp.DirectiveInputNullable)
 		})
 		t.Run("when function errors on nullable inner directives", func(t *testing.T) {
@@ -328,7 +337,7 @@ func TestDirectives(t *testing.T) {
 
 			err := c.Post(`query { directiveInputNullable(arg: {text:"success",inner:{message:"1"},innerNullable:{message:""}}) }`, &resp)
 
-			require.EqualError(t, err, `[{"message":"not valid","path":["directiveInputNullable"]}]`)
+			require.EqualError(t, err, `[{"message":"not valid","path":["directiveInputNullable","arg","innerNullable"]}]`)
 			require.Nil(t, resp.DirectiveInputNullable)
 		})
 		t.Run("when function success", func(t *testing.T) {
@@ -378,7 +387,8 @@ func TestDirectives(t *testing.T) {
 			require.Equal(t, "Ok", resp.DirectiveObject.Text)
 			require.True(t, resp.DirectiveObject.NullableText == nil)
 			require.Equal(t, "Query_field", resp.DirectiveObject.Order[0])
-			require.Equal(t, "ObjectDirectives_object", resp.DirectiveObject.Order[1])
+			require.Equal(t, "ObjectDirectives_object_2", resp.DirectiveObject.Order[1])
+			require.Equal(t, "ObjectDirectives_object_1", resp.DirectiveObject.Order[2])
 		})
 		t.Run("when directive returns nil & custom go field is not nilable", func(t *testing.T) {
 			var resp struct {

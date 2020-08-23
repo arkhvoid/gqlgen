@@ -417,7 +417,7 @@ func (f *Field) ImplDirectives() []*Directive {
 		loc = ast.LocationInputFieldDefinition
 	}
 	for i := range f.Directives {
-		if !f.Directives[i].Builtin && f.Directives[i].IsLocation(loc) {
+		if !f.Directives[i].Builtin && f.Directives[i].IsLocation(loc, ast.LocationObject) {
 			d = append(d, f.Directives[i])
 		}
 	}
@@ -491,7 +491,7 @@ func (f *Field) ShortResolverDeclaration() string {
 }
 
 func (f *Field) ComplexitySignature() string {
-	res := fmt.Sprintf("func(childComplexity int")
+	res := "func(childComplexity int"
 	for _, arg := range f.Args {
 		res += fmt.Sprintf(", %s %s", arg.VarName, templates.CurrentImports.LookupType(arg.TypeReference.GO))
 	}
